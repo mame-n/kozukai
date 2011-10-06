@@ -13,6 +13,7 @@ class KozukaiTyo
     @erb = ERB.new(input_script)
     @outcome_kozukai = {}
     @kozukai_body = {}
+#    @fn = "kozukai.data"
     @fn = "/Users/nakauchiaya/Data/kozukai.data"
     @db = PStore.new(@fn)
   end
@@ -26,7 +27,6 @@ class KozukaiTyo
     elsif @cgi["page_kind"] == "input"
       @date = Date.parse(@cgi["date_input"])
       val_from_cgi
-#      store_values
       viewhtml
 
     elsif @cgi["page_kind"] == "date"
@@ -77,17 +77,7 @@ class KozukaiTyo
   end
 
   def store_values
-    today_body = {
-      "date" => @date,
-      "saifu_real" => @saifu_real,
-      "kozukai_real" => @kozukai_real,
-      "outcome_kozukai_t"=>@outcome_kozukai_t,
-      "outcome_kozukai_m"=>@outcome_kozukai_m,
-      "outcome_keihi_t"=>@outcome_keihi_t,
-      "outcome_keihi_m"=>@outcome_keihi_m,
-      "income_kozukai"=>@income_kozukai,
-      "income_keihi"=>@income_keihi
-    }
+    today_body = now_body
     @db.transaction do
       index = -1
       (@db["root"].size-1).downto(0) do |i|
@@ -104,12 +94,6 @@ class KozukaiTyo
       else
         @db["root"].insert(index, today_body)
       end
-
-#      p @db["root"].size
-
-#      @saifu_calc = yesterday_saifu(index-1) - @inout_kei
-#      @balance = @saifu_calc - @saifu_real
-#      @kozukai_real = yesterday_kozukai(index-1) - ((v_out_kozu_t + v_out_kozu_m) - v_in_kozu)
     end
   end
 
@@ -132,16 +116,14 @@ class KozukaiTyo
       index = -1
       need_deploy if @db["root"].size == 0
       @db["root"].each_with_index do |v,k|
-#        pp "@ #{@date}"
-#        pp "v #{v["date"]}"
         next if @date > v["date"]
         index = k
         if @date == v["date"]
-          set_values_cgi(k)
+          set_values(k, @cgi)
           @db["root"][k] = now_body
           break
         else
-          set_values_cgi(k)
+          set_values(k, @cgi)
 #          @db["root"].insert(k) = make_body
           (@db["root"].size-1).downto(k) do |i|
             @db["root"][i+1] = @db["root"][i]
@@ -151,27 +133,10 @@ class KozukaiTyo
         end
       end
       if index == -1
-        set_values_cgi(@db["root"].size)
+        set_values(@db["root"].size, @cgi)
         @db["root"] << now_body
       end
     end
-  end
-
-  def set_values_cgi(k)
-    @saifu_real = @cgi["saifu_real"].to_i
-    @income_kozukai, v_in_kozu = investigate_koumoku(@cgi["income_kozukai"])
-    @income_keihi, v_in_kei = investigate_koumoku(@cgi["income_keihi"])
-    @income_kei = v_in_kozu + v_in_kei
-    @outcome_kozukai_t, v_out_kozu_t = investigate_koumoku(@cgi["outcome_kozukai_t"])
-    @outcome_kozukai_m, v_out_kozu_m = investigate_koumoku(@cgi["outcome_kozukai_m"])
-    @outcome_keihi_t, v_out_kei_t = investigate_koumoku(@cgi["outcome_keihi_t"])
-    @outcome_keihi_m, v_out_kei_m = investigate_koumoku(@cgi["outcome_keihi_m"])
-    @outcome_kei = v_out_kozu_t + v_out_kozu_m + v_out_kei_t + v_out_kei_m
-
-    @inout_kei = @outcome_kei - @income_kei
-    @saifu_calc = yesterday_saifu(k) - @inout_kei
-    @balance = @saifu_calc - @saifu_real
-    @kozukai_real = yesterday_kozukai(k) - ((v_out_kozu_t + v_out_kozu_m) - v_in_kozu)
   end
 
   def yesterday_saifu(k)
